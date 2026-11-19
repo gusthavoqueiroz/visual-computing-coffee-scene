@@ -6,3 +6,7 @@
 # Arquivos temporários
 *.blend@
 *.tmp
+
+.venv/
+__pycache__/
+*.pyc
