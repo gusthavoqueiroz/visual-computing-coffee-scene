@@ -1,6 +1,29 @@
 # OpenCV
 import cv2
 
+# Controlar a velocidade da animação independentemente da velocidade da webcam
+import time
+
+from animacoes import carregar_animacoes, sobrepor_imagem
+from deteccao import detectar_movimento
+from visualizacao import desenhar_zonas
+
+
+# Carrega as animações do Blender
+animacoes = carregar_animacoes()
+
+
+# Guarda o instante de início de cada animação
+inicio_animacoes = {
+    1: None,  # Cadeiras
+    2: None,  # Pratos
+    3: None   # Copos e talheres
+}
+
+# Velocidade das animações
+FPS_ANIMACAO = 24
+
+
 # Abre a webcam principal do computador - 0 a primeira webcam, 1 a segunda, e assim por diante
 camera = cv2.VideoCapture(0)
 
@@ -29,90 +52,59 @@ while True:
 
     # Espelha a imagem horizontalmente
     frame = cv2.flip(frame, 1)
-    
-    # Aplica o detector de movimento
-    mascara = detector.apply(frame)
 
-    # Remove pequenos ruídos da imagem
-    mascara = cv2.medianBlur(mascara, 5)
-
-    # Amplia as regiões de movimento
-    mascara = cv2.dilate(mascara, None, iterations=2)
-
-    # Encontra os contornos
-    contornos, _ = cv2.findContours(
-        mascara, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-    )
-
-    for contorno in contornos:
-        # Ignora movimentos pequenos | Calcula a área geométrica do contorno
-        if cv2.contourArea(contorno) < 1000:
-            continue
-
-        # Calcula o retângulo do movimento
-        x, y, w, h = cv2.boundingRect(contorno)
-
-        # Desenha o retângulo verde | frame, ponto superior esquerdo, ponto inferior direito, cor, espessura
-        cv2.rectangle(
-            frame, (x, y), (x + w, y + h),
-            (0, 255, 0), 2
-        )
-
-
-        # Calcula o centro horizontal do movimento
-        centro_x = x + w // 2
-
-        # Obtém a largura da imagem | 1 = largura, 0 = altura
-        largura_frame = frame.shape[1]
-
-        # Calcula os limites das três zonas
-        limite_zona1 = largura_frame // 3
-        limite_zona2 = (largura_frame * 2) // 3
-
-        # Identifica em qual zona aconteceu o movimento
-        if centro_x < limite_zona1:
-            zona = 1
-        elif centro_x < limite_zona2:
-            zona = 2
-        else:
-            zona = 3
-
-        # Mostra a zona detectada na imagem
-        cv2.putText(
-            frame,
-            f"Movimento: Zona {zona}",
-            (x, max(y - 10, 20)),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            (0, 255, 0),
-            2
-        )
-
-    
-    # Obtém as dimensões da imagem | :2 se refere a altura e largura, ignorando o restante (canais de cor)
+    # Obtém a altura e a largura da imagem
     altura, largura = frame.shape[:2]
 
-    # Calcula a largura de cada zona
+    # Divide a webcam em três zonas
     largura_zona = largura // 3
 
-    # Desenha duas linhas verticais
-    cv2.line(frame, (largura_zona, 0), (largura_zona, altura), (255, 255, 255), 2)
-    cv2.line(frame, (largura_zona * 2, 0), (largura_zona * 2, altura), (255, 255, 255), 2)
+    # Detecta os movimentos e retorna as zonas ativas
+    zonas_ativas = detectar_movimento(frame, detector)
+
+    
+    # Controla as animações das três zonas
+    for zona in (1, 2, 3):
+
+        # Inicia a animação quando há movimento na zona
+        if zona in zonas_ativas and inicio_animacoes[zona] is None:
+            inicio_animacoes[zona] = time.monotonic()
+
+        # Verifica se existe uma animação em execução
+        if inicio_animacoes[zona] is not None and animacoes[zona]:
+
+            # Calcula o tempo desde o início
+            tempo_decorrido = time.monotonic() - inicio_animacoes[zona]
+
+            # Calcula a duração de um ciclo completo
+            duracao = len(animacoes[zona]) / FPS_ANIMACAO
+
+            # Calcula o índice do frame atual
+            indice_frame = int(tempo_decorrido * FPS_ANIMACAO) % len(animacoes[zona])
+
+            # Define a posição da animação conforme a zona
+            posicao_x = (zona - 1) * largura_zona + 30
+            posicao_y = 150
+
+            # Exibe o frame da animação
+            sobrepor_imagem(
+                frame,
+                animacoes[zona][indice_frame],
+                posicao_x,
+                posicao_y
+            )
+
+        # Encerra a animação após um ciclo
+            if tempo_decorrido >= duracao:
+                inicio_animacoes[zona] = None
 
 
-    # Identifica cada zona
-    cv2.putText(frame, "ZONA 1 - CADEIRAS", (10, 30),
-        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-
-    cv2.putText(frame, "ZONA 2 - PRATOS", (largura_zona + 10, 30),
-        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-
-    cv2.putText(frame, "ZONA 3 - COPOS", (largura_zona * 2 + 10, 30),
-        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-
+    # Desenha as divisões e os textos das três zonas
+    desenhar_zonas(frame, zonas_ativas)
 
     # Exibe a imagem com as três zonas
     cv2.imshow("Computacao Visual - Webcam", frame)
+
 
     # Pressione Q para encerrar
     if cv2.waitKey(1) & 0xFF == ord("q"):
