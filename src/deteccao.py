@@ -3,7 +3,7 @@ import cv2
 
 
 def detectar_movimento(frame, detector, area_minima=1000):
-    
+
     # Identifica os pixels que diferem do fundo
     mascara = detector.apply(frame)
 
@@ -21,9 +21,18 @@ def detectar_movimento(frame, detector, area_minima=1000):
     limite_zona1 = largura // 3
     limite_zona2 = (largura * 2) // 3
 
+    # Armazena as zonas que possuem movimento
     zonas_ativas = set()
 
+    # Armazena os retângulos detectados em cada zona
+    bounding_boxes = {
+        1: [],
+        2: [],
+        3: []
+    }
+
     for contorno in contornos:
+
         # Ignora movimentos muito pequenos
         if cv2.contourArea(contorno) < area_minima:
             continue
@@ -33,8 +42,11 @@ def detectar_movimento(frame, detector, area_minima=1000):
 
         # Desenha o retângulo verde
         cv2.rectangle(
-            frame, (x, y), (x + w, y + h),
-            (0, 255, 0), 2
+            frame,
+            (x, y),
+            (x + w, y + h),
+            (0, 255, 0),
+            2
         )
 
         # Identifica a zona pelo centro horizontal
@@ -42,11 +54,18 @@ def detectar_movimento(frame, detector, area_minima=1000):
 
         if centro_x < limite_zona1:
             zona = 1
+
         elif centro_x < limite_zona2:
             zona = 2
+
         else:
             zona = 3
 
+        # Registra a zona ativa
         zonas_ativas.add(zona)
 
-    return zonas_ativas
+        # Armazena as coordenadas do movimento
+        bounding_boxes[zona].append([x, y, w, h])
+
+    # Retorna as zonas e seus respectivos retângulos
+    return zonas_ativas, bounding_boxes
