@@ -7,6 +7,7 @@ import time
 from animacoes import carregar_animacoes, sobrepor_imagem
 from deteccao import detectar_movimento
 from visualizacao import desenhar_zonas
+from comunicacao import enviar_comando
 
 
 # Carrega as animações do Blender
@@ -69,6 +70,9 @@ while True:
         # Inicia a animação quando há movimento na zona
         if zona in zonas_ativas and inicio_animacoes[zona] is None:
             inicio_animacoes[zona] = time.monotonic()
+
+            # Envia o comando ao Blender
+            enviar_comando(zona)
 
         # Verifica se existe uma animação em execução
         if inicio_animacoes[zona] is not None and animacoes[zona]:
